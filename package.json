@@ -1,0 +1,23 @@
+{
+  "name": "gdgc-ggv-backend",
+  "version": "1.0.0",
+  "description": "Backend server for GDG Cloud GGV Leaderboard with hourly auto-scraping",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "keywords": ["gdg", "leaderboard", "scraper", "node-cron"],
+  "author": "GDG Cloud GGV",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
