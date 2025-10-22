@@ -12,10 +12,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 4000;
 const PYTHON = process.env.PYTHON || (process.platform === 'win32' ? 'py -3' : 'python3');
-const WORKSPACE_ROOT = path.resolve(__dirname, '..');
+const WORKSPACE_ROOT = __dirname; // Python files are in the same directory
 const DATA_DIR = path.join(__dirname, 'data');
 const OUTPUT_JSON = path.join(DATA_DIR, 'results.json');
-const FALLBACK_JSON = path.join(WORKSPACE_ROOT, 'results_from_gform.json');
+const FALLBACK_JSON = path.join(__dirname, 'results_from_gform.json');
 
 // In-memory cache to serve instantly
 let CACHE = {
