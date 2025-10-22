@@ -23,6 +23,14 @@ let CACHE = {
   updatedAt: null,
 };
 
+// Track scraping state for incremental updates
+let SCRAPE_STATE = {
+  lastBatchIndex: -1,  // Which batch was scraped last
+  totalProfiles: 187,
+  batchSize: 50,       // Scrape 50 profiles at a time
+  isRunning: false,
+};
+
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
@@ -56,13 +64,31 @@ function readJsonSafe(file) {
   } catch {}
 })();
 
-function runScrape() {
+function runScrape(batchIndex = null) {
   return new Promise((resolve) => {
+    if (SCRAPE_STATE.isRunning) {
+      console.log('[scrape] Already running, skipping...');
+      return resolve({ ok: false, reason: 'already_running' });
+    }
+
+    SCRAPE_STATE.isRunning = true;
+    
+    // Determine batch to scrape (null = scrape all)
+    const startIdx = batchIndex !== null ? batchIndex * SCRAPE_STATE.batchSize : 0;
+    const endIdx = batchIndex !== null ? (batchIndex + 1) * SCRAPE_STATE.batchSize : SCRAPE_STATE.totalProfiles;
+    
     console.log(`[scrape] Starting scrape at ${new Date().toISOString()}`);
+    console.log(`[scrape] Batch mode: ${batchIndex !== null ? `batch ${batchIndex} (profiles ${startIdx}-${endIdx})` : 'ALL profiles'}`);
 
     const outPath = OUTPUT_JSON;
     const script = 'batch_from_csv.py';
-    const args = [script, '--out', outPath];
+    const args = [script, '--out', outPath, '--workers', '3'];
+    
+    // Add batch parameters if needed
+    if (batchIndex !== null) {
+      args.push('--start', startIdx.toString(), '--limit', SCRAPE_STATE.batchSize.toString());
+    }
+    
     console.log(`[scrape] cmd: ${PYTHON} ${args.join(' ')} (cwd=${WORKSPACE_ROOT})`);
     const proc = spawn(PYTHON, args, {
       cwd: WORKSPACE_ROOT,
@@ -82,6 +108,8 @@ function runScrape() {
     });
 
     proc.on('close', (code) => {
+      SCRAPE_STATE.isRunning = false;
+      
       if (code === 0) {
         console.log('[scrape] Completed successfully');
         // Refresh cache from latest file
@@ -89,6 +117,7 @@ function runScrape() {
         if (Array.isArray(latest)) {
           CACHE.data = latest;
           CACHE.updatedAt = new Date().toISOString();
+          console.log(`[scrape] Cache updated: ${CACHE.data.length} profiles`);
         }
         resolve({ ok: true, stdout });
       } else {
@@ -101,12 +130,14 @@ function runScrape() {
 }
 
 // Skip startup scrape to save memory - serve cached data immediately
-console.log('[init] Serving cached data. Scraping will start at scheduled interval.');
+console.log('[init] Serving cached data. Full scraping will start at scheduled interval.');
+console.log(`[init] Cached profiles: ${CACHE.data.length}`);
 
-// Schedule scrape every 20 minutes (reduced from 5 to prevent memory issues)
+// Schedule FULL scrape every 20 minutes
+// This will scrape ALL 187 profiles but with optimized settings (3 workers)
 cron.schedule('*/20 * * * *', async () => {
-  console.log('[cron] Starting scheduled scrape...');
-  await runScrape();
+  console.log('[cron] Starting full scrape of all 187 profiles...');
+  await runScrape(null); // null = scrape all
 });
 
 app.get('/api/leaderboard', (req, res) => {

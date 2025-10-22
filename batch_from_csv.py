@@ -118,6 +118,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--workers', '-w', type=int, default=3, help='Number of concurrent workers (default 3, reduced for memory)')
     parser.add_argument('--out', '-o', default='results_from_gform.json')
+    parser.add_argument('--start', type=int, default=0, help='Start index for batch scraping')
+    parser.add_argument('--limit', type=int, default=None, help='Number of profiles to scrape (for batching)')
     args = parser.parse_args()
 
     urls = extract_urls_from_csv(CSV_PATH)
@@ -125,9 +127,27 @@ def main():
         print('No profile URLs found in gform.csv')
         sys.exit(1)
 
+    # Apply batch slicing if specified
+    total_urls = len(urls)
+    if args.start > 0 or args.limit is not None:
+        end_idx = args.start + args.limit if args.limit else total_urls
+        urls = urls[args.start:end_idx]
+        print(f'Batch mode: scraping profiles {args.start} to {args.start + len(urls)} (out of {total_urls} total)')
+    
     workers = args.workers
-    print(f'Found {len(urls)} profile URLs. Starting scraping with {workers} workers...')
+    print(f'Found {len(urls)} profile URLs to scrape. Using {workers} workers...')
 
+    # Load existing results if in batch mode and file exists
+    out_path = Path(args.out)
+    existing_results = []
+    if (args.start > 0 or args.limit) and out_path.exists():
+        try:
+            with out_path.open('r', encoding='utf-8') as f:
+                existing_results = json.load(f)
+                print(f'Loaded {len(existing_results)} existing entries from {out_path}')
+        except:
+            pass
+    
     results = []
     
     with ThreadPoolExecutor(max_workers=workers) as ex:
@@ -152,11 +172,19 @@ def main():
             
             results.append(entry)
 
-    out_path = Path(args.out)
-    with out_path.open('w', encoding='utf-8') as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
+    # Merge with existing results (update by URL)
+    if existing_results:
+        url_to_entry = {e['url']: e for e in existing_results}
+        for new_entry in results:
+            url_to_entry[new_entry['url']] = new_entry
+        final_results = list(url_to_entry.values())
+    else:
+        final_results = results
 
-    print(f'Done. Wrote {out_path} with {len(results)} entries.')
+    with out_path.open('w', encoding='utf-8') as f:
+        json.dump(final_results, f, ensure_ascii=False, indent=2)
+
+    print(f'Done. Wrote {out_path} with {len(final_results)} total entries ({len(results)} new/updated).')
 
 
 if __name__ == '__main__':
