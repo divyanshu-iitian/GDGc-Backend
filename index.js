@@ -100,15 +100,12 @@ function runScrape() {
   });
 }
 
-// Trigger scrape at startup (non-blocking)
-runScrape().then((res) => {
-  if (!res.ok) {
-    console.warn('[scrape] Initial scrape failed; serving cached/fallback');
-  }
-});
+// Skip startup scrape to save memory - serve cached data immediately
+console.log('[init] Serving cached data. Scraping will start at scheduled interval.');
 
-// Schedule scrape every 5 minutes
-cron.schedule('*/5 * * * *', async () => {
+// Schedule scrape every 20 minutes (reduced from 5 to prevent memory issues)
+cron.schedule('*/20 * * * *', async () => {
+  console.log('[cron] Starting scheduled scrape...');
   await runScrape();
 });
 

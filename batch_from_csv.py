@@ -116,7 +116,7 @@ def scrape_profile_with_name(url: str, timeout: int = 180) -> dict:
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--workers', '-w', type=int, default=5, help='Number of concurrent workers (default 5)')
+    parser.add_argument('--workers', '-w', type=int, default=3, help='Number of concurrent workers (default 3, reduced for memory)')
     parser.add_argument('--out', '-o', default='results_from_gform.json')
     args = parser.parse_args()
 

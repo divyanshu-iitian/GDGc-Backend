@@ -89,8 +89,8 @@ def main():
     except Exception as e:
         print(f"Static fetch failed: {e}")
 
-    # Always try Playwright if static returns empty (shadow DOM issue)
-    if not out:
+    # Try Playwright if static returns empty AND explicitly requested
+    if (not out) and use_pw:
         try:
             out = scrape_playwright(url)
         except Exception as e:
