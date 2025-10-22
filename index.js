@@ -107,8 +107,8 @@ runScrape().then((res) => {
   }
 });
 
-// Schedule scrape every hour
-cron.schedule('0 * * * *', async () => {
+// Schedule scrape every 5 minutes
+cron.schedule('*/5 * * * *', async () => {
   await runScrape();
 });
 
