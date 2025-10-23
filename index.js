@@ -118,6 +118,14 @@ function runScrape(batchIndex = null) {
           CACHE.data = latest;
           CACHE.updatedAt = new Date().toISOString();
           console.log(`[scrape] Cache updated: ${CACHE.data.length} profiles`);
+          
+          // IMPORTANT: Also backup to fallback file for persistence across restarts
+          try {
+            fs.writeFileSync(FALLBACK_JSON, JSON.stringify(latest, null, 2));
+            console.log('[scrape] Persisted data to fallback file for restart safety');
+          } catch (err) {
+            console.error('[scrape] Failed to persist to fallback:', err.message);
+          }
         }
         resolve({ ok: true, stdout });
       } else {
@@ -129,14 +137,25 @@ function runScrape(batchIndex = null) {
   });
 }
 
-// Skip startup scrape to save memory - serve cached data immediately
-console.log('[init] Serving cached data. Full scraping will start at scheduled interval.');
-console.log(`[init] Cached profiles: ${CACHE.data.length}`);
+// Start immediate scrape on startup (non-blocking)
+console.log('[init] Starting immediate scrape on startup...');
+console.log(`[init] Currently cached profiles: ${CACHE.data.length}`);
+
+// Trigger first scrape immediately but don't wait for it
+runScrape(null).then((res) => {
+  if (res.ok) {
+    console.log('[init] Startup scrape completed successfully');
+  } else {
+    console.warn('[init] Startup scrape failed, will retry at next interval');
+  }
+}).catch(err => {
+  console.error('[init] Startup scrape error:', err);
+});
 
 // Schedule FULL scrape every 20 minutes
 // This will scrape ALL 187 profiles but with optimized settings (3 workers)
 cron.schedule('*/20 * * * *', async () => {
-  console.log('[cron] Starting full scrape of all 187 profiles...');
+  console.log('[cron] Starting scheduled full scrape of all 187 profiles...');
   await runScrape(null); // null = scrape all
 });
 

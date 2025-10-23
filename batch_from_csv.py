@@ -139,15 +139,16 @@ def main():
     workers = args.workers
     print(f'Found {len(urls)} profile URLs to scrape. Using {workers} workers...')
 
-    # Load existing results if in batch mode and file exists
+    # ALWAYS load existing results to merge/update (for persistence across restarts)
     out_path = Path(args.out)
     existing_results = []
-    if (args.start > 0 or args.limit) and out_path.exists():
+    if out_path.exists():
         try:
             with out_path.open('r', encoding='utf-8') as f:
                 existing_results = json.load(f)
-                print(f'Loaded {len(existing_results)} existing entries from {out_path}')
-        except:
+                print(f'[Persistence] Loaded {len(existing_results)} existing entries from {out_path}')
+        except Exception as e:
+            print(f'[Warning] Could not load existing file: {e}')
             pass
     
     results = []
