@@ -10,6 +10,15 @@ import { MongoClient } from 'mongodb';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Prevent server crash on uncaught errors
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 // MongoDB Configuration
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://divyanshumishra0806_db_user:77K64gX5xX14nxmW@cluster0.xrv8slm.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 const DB_NAME = 'gdgc-leaderboard';
@@ -54,7 +63,12 @@ async function connectMongoDB() {
   try {
     if (!mongoClient) {
       console.log('[MongoDB] Connecting...');
-      mongoClient = new MongoClient(MONGODB_URI);
+      mongoClient = new MongoClient(MONGODB_URI, {
+        serverSelectionTimeoutMS: 5000, // 5 second timeout
+        connectTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+      });
+      
       await mongoClient.connect();
       db = mongoClient.db(DB_NAME);
       profilesCollection = db.collection(COLLECTION_NAME);
@@ -66,7 +80,9 @@ async function connectMongoDB() {
     }
     return profilesCollection;
   } catch (error) {
-    console.error('[MongoDB] ❌ Connection failed:', error);
+    console.error('[MongoDB] ❌ Connection failed:', error.message);
+    console.log('[MongoDB] ℹ️ Will continue with local files only');
+    mongoClient = null; // Reset so it can retry later
     return null;
   }
 }
@@ -76,18 +92,24 @@ async function saveToMongoDB(profiles) {
   try {
     const collection = await connectMongoDB();
     if (!collection || !Array.isArray(profiles) || profiles.length === 0) {
+      console.log('[MongoDB] ⏭️ Skipping save (no connection or no data)');
       return;
     }
 
     // Upsert each profile (update if exists, insert if new)
+    // Save ALL profiles, even if incomplete
     const operations = profiles
-      .filter(p => p.url) // Only valid profiles with URLs
+      .filter(p => p.url) // Only need valid URL
       .map(profile => ({
         updateOne: {
           filter: { url: profile.url },
           update: {
             $set: {
-              ...profile,
+              url: profile.url,
+              name: profile.name || 'Unknown', // Default name if missing
+              titles: Array.isArray(profile.titles) ? profile.titles : [],
+              badge_count: Array.isArray(profile.titles) ? profile.titles.length : 0, // Calculate badge_count
+              error: profile.error || null,
               updatedAt: new Date()
             }
           },
@@ -100,7 +122,8 @@ async function saveToMongoDB(profiles) {
       console.log(`[MongoDB] 💾 Saved ${result.upsertedCount + result.modifiedCount} profiles`);
     }
   } catch (error) {
-    console.error('[MongoDB] Save error:', error);
+    console.error('[MongoDB] ❌ Save error:', error.message);
+    console.log('[MongoDB] ℹ️ Data saved to local files only');
   }
 }
 
@@ -108,7 +131,10 @@ async function saveToMongoDB(profiles) {
 async function loadFromMongoDB() {
   try {
     const collection = await connectMongoDB();
-    if (!collection) return null;
+    if (!collection) {
+      console.log('[MongoDB] ⏭️ Skipping load (no connection)');
+      return null;
+    }
 
     const profiles = await collection
       .find({})
@@ -118,7 +144,7 @@ async function loadFromMongoDB() {
     console.log(`[MongoDB] 📥 Loaded ${profiles.length} profiles from database`);
     return profiles;
   } catch (error) {
-    console.error('[MongoDB] Load error:', error);
+    console.error('[MongoDB] ❌ Load error:', error.message);
     return null;
   }
 }
@@ -250,30 +276,43 @@ function runScrape(batchIndex = null) {
   });
 }
 
-// Start immediate scrape on startup (non-blocking)
-console.log('[init] Starting immediate scrape on startup...');
-console.log(`[init] Currently cached profiles: ${CACHE.data.length}`);
+// Start immediate scrape on startup (non-blocking) - DISABLED
+// console.log('[init] Starting immediate scrape on startup...');
+// console.log(`[init] Currently cached profiles: ${CACHE.data.length}`);
 
-// Trigger first scrape immediately but don't wait for it
-runScrape(null).then((res) => {
-  if (res.ok) {
-    console.log('[init] Startup scrape completed successfully');
-  } else {
-    console.warn('[init] Startup scrape failed, will retry at next interval');
-  }
-}).catch(err => {
-  console.error('[init] Startup scrape error:', err);
-});
+// Trigger first scrape immediately but don't wait for it - COMPLETELY DISABLED
+// setTimeout(() => {
+//   runScrape(null).then((res) => {
+//     if (res.ok) {
+//       console.log('[init] ✅ Startup scrape completed and synced to MongoDB');
+//     } else {
+//       console.warn('[init] ⚠️ Startup scrape failed, will retry at next cron interval');
+//     }
+//   }).catch(err => {
+//     console.error('[init] ❌ Startup scrape error:', err.message);
+//   });
+// }, 5000); // Wait 5 seconds after server starts
 
-// Schedule FULL scrape every 20 minutes
-// This will scrape ALL 187 profiles but with optimized settings (3 workers)
+// Schedule FULL scrape every 20 minutes - AUTO UPDATE TO MONGODB
+// This will scrape ALL 187 profiles and immediately update MongoDB
 cron.schedule('*/20 * * * *', async () => {
   console.log('[cron] Starting scheduled full scrape of all 187 profiles...');
-  await runScrape(null); // null = scrape all
+  const result = await runScrape(null); // null = scrape all
+  if (result.ok) {
+    console.log('[cron] ✅ Scrape completed and data synced to MongoDB');
+  } else {
+    console.log('[cron] ⚠️ Scrape failed, will retry in next cycle');
+  }
 });
 
 app.get('/api/leaderboard', (req, res) => {
-  res.json(CACHE.data || []);
+  // Ensure badge_count is always present for frontend
+  const data = (CACHE.data || []).map(profile => ({
+    ...profile,
+    badge_count: Array.isArray(profile.titles) ? profile.titles.length : 0,
+    name: profile.name || 'Unknown'
+  }));
+  res.json(data);
 });
 
 app.get('/api/status', (req, res) => {
