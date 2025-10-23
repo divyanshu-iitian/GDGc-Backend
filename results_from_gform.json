@@ -1,20 +1,17 @@
 [
   {
     "url": "https://www.cloudskillsboost.google/public_profiles/01620a5e-c79a-41f0-9aa0-0c651cc551cc",
-    "error": "Page.goto: net::ERR_NAME_NOT_RESOLVED at https://www.cloudskillsboost.google/public_profiles/01620a5e-c79a-41f0-9aa0-0c651cc551cc\nCall log:\n  - navigating to \"https://www.cloudskillsboost.google/public_profiles/01620a5e-c79a-41f0-9aa0-0c651cc551cc\", waiting until \"networkidle\"\n",
-    "name": "",
+    "name": "Sankalp Raj Oraon",
     "titles": []
   },
   {
     "url": "https://www.cloudskillsboost.google/public_profiles/01c4ce29-bc6f-4164-974a-ecf140b2751d",
-    "error": "Page.goto: net::ERR_NAME_NOT_RESOLVED at https://www.cloudskillsboost.google/public_profiles/01c4ce29-bc6f-4164-974a-ecf140b2751d\nCall log:\n  - navigating to \"https://www.cloudskillsboost.google/public_profiles/01c4ce29-bc6f-4164-974a-ecf140b2751d\", waiting until \"networkidle\"\n",
-    "name": "",
+    "name": "Pranjal Varshney",
     "titles": []
   },
   {
     "url": "https://www.cloudskillsboost.google/public_profiles/00cec247-05c8-4ccc-b1de-2a6345db1447",
-    "error": "Page.goto: net::ERR_NAME_NOT_RESOLVED at https://www.cloudskillsboost.google/public_profiles/00cec247-05c8-4ccc-b1de-2a6345db1447\nCall log:\n  - navigating to \"https://www.cloudskillsboost.google/public_profiles/00cec247-05c8-4ccc-b1de-2a6345db1447\", waiting until \"networkidle\"\n",
-    "name": "",
+    "name": "Anukriti Tiwari",
     "titles": []
   },
   {
