@@ -57,6 +57,8 @@ def scrape_profile_with_name(url: str, timeout: int = 180) -> dict:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
             page.goto(url, wait_until="networkidle", timeout=timeout * 1000)
+            # Extra wait for shadow DOM to fully load
+            page.wait_for_timeout(2000)
             
             # JS to extract name from h1.ql-display-small and titles from span.ql-title-medium
             js = r"""
