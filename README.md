@@ -4,17 +4,19 @@ Backend server for the GDG Cloud GGV Leaderboard that automatically scrapes Goog
 
 ## Features
 
-- 🔄 **Auto-refresh**: Scrapes data every hour using node-cron
+- 🔄 **Auto-refresh**: Scrapes data every 20 minutes using node-cron
 - 🚀 **REST API**: Simple endpoints to fetch leaderboard data
 - 🐍 **Python Integration**: Runs existing Python scraper scripts
-- 📊 **JSON Storage**: Stores results in `data/results.json`
+- 📊 **MongoDB Storage**: Permanent data persistence across restarts
+- 💾 **Dual Backup**: Local JSON + MongoDB for reliability
 
 ## Tech Stack
 
 - Node.js + Express
+- MongoDB Atlas (cloud database)
 - node-cron (scheduled tasks)
 - CORS enabled
-- Python (for scraping)
+- Python + Playwright (for scraping)
 
 ## API Endpoints
 
@@ -120,6 +122,9 @@ git push origin main
    ```
    Key: PYTHON
    Value: python3
+   
+   Key: MONGODB_URI
+   Value: mongodb+srv://divyanshumishra0806_db_user:77K64gX5xX14nxmW@cluster0.xrv8slm.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
    ```
 
 5. **Advanced Settings (Optional):**

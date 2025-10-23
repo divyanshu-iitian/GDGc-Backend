@@ -10,12 +10,18 @@
     "dev": "node index.js",
     "build": "pip3 install -r requirements.txt && playwright install chromium"
   },
-  "keywords": ["gdg", "leaderboard", "scraper", "node-cron"],
+  "keywords": [
+    "gdg",
+    "leaderboard",
+    "scraper",
+    "node-cron"
+  ],
   "author": "GDG Cloud GGV",
   "license": "MIT",
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.19.2",
+    "mongodb": "^6.20.0",
     "node-cron": "^3.0.3"
   },
   "engines": {

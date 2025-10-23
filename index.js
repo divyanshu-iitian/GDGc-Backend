@@ -5,9 +5,19 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import cron from 'node-cron';
+import { MongoClient } from 'mongodb';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// MongoDB Configuration
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://divyanshumishra0806_db_user:77K64gX5xX14nxmW@cluster0.xrv8slm.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+const DB_NAME = 'gdgc-leaderboard';
+const COLLECTION_NAME = 'profiles';
+
+let mongoClient = null;
+let db = null;
+let profilesCollection = null;
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -39,6 +49,80 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
+// MongoDB Connection
+async function connectMongoDB() {
+  try {
+    if (!mongoClient) {
+      console.log('[MongoDB] Connecting...');
+      mongoClient = new MongoClient(MONGODB_URI);
+      await mongoClient.connect();
+      db = mongoClient.db(DB_NAME);
+      profilesCollection = db.collection(COLLECTION_NAME);
+      
+      // Create index on URL for faster queries
+      await profilesCollection.createIndex({ url: 1 }, { unique: true });
+      
+      console.log('[MongoDB] ✅ Connected successfully');
+    }
+    return profilesCollection;
+  } catch (error) {
+    console.error('[MongoDB] ❌ Connection failed:', error);
+    return null;
+  }
+}
+
+// Save data to MongoDB
+async function saveToMongoDB(profiles) {
+  try {
+    const collection = await connectMongoDB();
+    if (!collection || !Array.isArray(profiles) || profiles.length === 0) {
+      return;
+    }
+
+    // Upsert each profile (update if exists, insert if new)
+    const operations = profiles
+      .filter(p => p.url) // Only valid profiles with URLs
+      .map(profile => ({
+        updateOne: {
+          filter: { url: profile.url },
+          update: {
+            $set: {
+              ...profile,
+              updatedAt: new Date()
+            }
+          },
+          upsert: true
+        }
+      }));
+
+    if (operations.length > 0) {
+      const result = await collection.bulkWrite(operations);
+      console.log(`[MongoDB] 💾 Saved ${result.upsertedCount + result.modifiedCount} profiles`);
+    }
+  } catch (error) {
+    console.error('[MongoDB] Save error:', error);
+  }
+}
+
+// Load data from MongoDB
+async function loadFromMongoDB() {
+  try {
+    const collection = await connectMongoDB();
+    if (!collection) return null;
+
+    const profiles = await collection
+      .find({})
+      .sort({ badge_count: -1, name: 1 })
+      .toArray();
+    
+    console.log(`[MongoDB] 📥 Loaded ${profiles.length} profiles from database`);
+    return profiles;
+  } catch (error) {
+    console.error('[MongoDB] Load error:', error);
+    return null;
+  }
+}
+
 function readJsonSafe(file) {
   try {
     if (fs.existsSync(file)) {
@@ -51,18 +135,40 @@ function readJsonSafe(file) {
   return null;
 }
 
-// Initialize cache from last output or fallback
-(function initCache() {
-  const initial = readJsonSafe(OUTPUT_JSON) || readJsonSafe(FALLBACK_JSON) || [];
-  CACHE.data = Array.isArray(initial) ? initial : [];
+// Initialize cache from MongoDB first, then fallback to files
+async function initCache() {
+  console.log('[Cache] Initializing...');
+  
+  // Try loading from MongoDB first
+  const mongoData = await loadFromMongoDB();
+  
+  if (mongoData && mongoData.length > 0) {
+    CACHE.data = mongoData;
+    console.log(`[Cache] ✅ Loaded ${mongoData.length} profiles from MongoDB`);
+  } else {
+    // Fallback to local files
+    const initial = readJsonSafe(OUTPUT_JSON) || readJsonSafe(FALLBACK_JSON) || [];
+    CACHE.data = Array.isArray(initial) ? initial : [];
+    console.log(`[Cache] ℹ️ Loaded ${CACHE.data.length} profiles from local files`);
+    
+    // If we have local data but not in MongoDB, save it
+    if (CACHE.data.length > 0) {
+      await saveToMongoDB(CACHE.data);
+    }
+  }
+  
   CACHE.updatedAt = new Date().toISOString();
+  
   // Ensure an output file exists for visibility
   try {
     if (!fs.existsSync(OUTPUT_JSON)) {
       fs.writeFileSync(OUTPUT_JSON, JSON.stringify(CACHE.data, null, 2));
     }
   } catch {}
-})();
+}
+
+// Call initCache asynchronously
+initCache().catch(console.error);
 
 function runScrape(batchIndex = null) {
   return new Promise((resolve) => {
@@ -119,10 +225,17 @@ function runScrape(batchIndex = null) {
           CACHE.updatedAt = new Date().toISOString();
           console.log(`[scrape] Cache updated: ${CACHE.data.length} profiles`);
           
-          // IMPORTANT: Also backup to fallback file for persistence across restarts
+          // IMPORTANT: Save to MongoDB for permanent persistence
+          saveToMongoDB(latest).then(() => {
+            console.log('[scrape] ✅ Data synced to MongoDB');
+          }).catch(err => {
+            console.error('[scrape] MongoDB sync error:', err.message);
+          });
+          
+          // Also backup to fallback file for local access
           try {
             fs.writeFileSync(FALLBACK_JSON, JSON.stringify(latest, null, 2));
-            console.log('[scrape] Persisted data to fallback file for restart safety');
+            console.log('[scrape] Persisted data to fallback file');
           } catch (err) {
             console.error('[scrape] Failed to persist to fallback:', err.message);
           }
