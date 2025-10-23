@@ -9,7 +9,6 @@ import csv
 import sys
 import json
 import re
-import subprocess
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
@@ -42,9 +41,6 @@ def extract_urls_from_csv(path: Path) -> List[str]:
                         if part.startswith('http'):
                             u = part.split('?')[0].split('#')[0]
                             urls.add(u)
-                        else:
-                            # not a full URL, skip
-                            pass
     return sorted(urls)
 
 
@@ -149,7 +145,6 @@ def main():
                 print(f'[Persistence] Loaded {len(existing_results)} existing entries from {out_path}')
         except Exception as e:
             print(f'[Warning] Could not load existing file: {e}')
-            pass
     
     results = []
     
@@ -188,116 +183,6 @@ def main():
         json.dump(final_results, f, ensure_ascii=False, indent=2)
 
     print(f'Done. Wrote {out_path} with {len(final_results)} total entries ({len(results)} new/updated).')
-
-
-if __name__ == '__main__':
-    main()
-#!/usr/bin/env python3
-"""Read `gform.csv`, find all public_profiles URLs, and scrape each profile.
-
-Usage: python batch_from_csv.py [gform.csv]
-Writes `results_from_gform.json` in the current folder.
-"""
-import sys
-import re
-import csv
-import json
-from typing import List, Set
-
-from scraper import scrape_playwright
-
-
-def extract_urls_from_csv(path: str) -> List[str]:
-    urls: Set[str] = set()
-    pattern = re.compile(r'https?://[^\"]*/public_profiles/[0-9a-fA-F-]+')
-
-    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-        text = f.read()
-        for m in pattern.findall(text):
-            urls.add(m.split('?')[0].strip())
-
-    return sorted(urls)
-
-
-def main():
-    csv_path = sys.argv[1] if len(sys.argv) > 1 else 'gform.csv'
-    urls = extract_urls_from_csv(csv_path)
-    if not urls:
-        print('No public_profiles URLs found in', csv_path)
-        return
-
-    results = {}
-    total = len(urls)
-    print(f'Found {total} unique profiles; scraping one-by-one (this can take several minutes)...')
-
-    for i, url in enumerate(urls, start=1):
-        print(f'[{i}/{total}] {url}')
-        try:
-            titles = scrape_playwright(url)
-            results[url] = titles
-        except Exception as e:
-            results[url] = {'error': str(e)}
-
-    out_file = 'results_from_gform.json'
-    with open(out_file, 'w', encoding='utf-8') as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
-
-    print('Done. Results written to', out_file)
-
-
-if __name__ == '__main__':
-    main()
-#!/usr/bin/env python3
-"""Read `gform.csv`, extract public profile URLs, and scrape each one.
-
-Usage: python batch_from_csv.py
-"""
-import csv
-import json
-from typing import List, Set
-from urllib.parse import urlparse
-
-from scraper import scrape_playwright
-
-
-CSV_PATH = 'gform.csv'
-OUT_PATH = 'results_from_gform.json'
-
-
-def extract_urls_from_csv(path: str) -> List[str]:
-    urls = []
-    with open(path, newline='', encoding='utf-8') as f:
-        reader = csv.reader(f)
-        for row in reader:
-            for cell in row:
-                if '/public_profiles/' in cell:
-                    # normalize: remove params and whitespace
-                    u = cell.strip().split('?')[0]
-                    urls.append(u)
-    # deduplicate while preserving order
-    seen = set()
-    out = []
-    for u in urls:
-        if u not in seen:
-            seen.add(u)
-            out.append(u)
-    return out
-
-
-def main():
-    profiles = extract_urls_from_csv(CSV_PATH)
-    results = {}
-    for p in profiles:
-        try:
-            titles = scrape_playwright(p)
-            results[p] = titles
-        except Exception as e:
-            results[p] = {"error": str(e)}
-
-    with open(OUT_PATH, 'w', encoding='utf-8') as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
-
-    print(f"Wrote {OUT_PATH} with {len(results)} profiles")
 
 
 if __name__ == '__main__':
