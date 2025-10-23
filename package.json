@@ -8,7 +8,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js",
-    "build": "pip3 install -r requirements.txt"
+    "build": "pip3 install -r requirements.txt && playwright install chromium"
   },
   "keywords": ["gdg", "leaderboard", "scraper", "node-cron"],
   "author": "GDG Cloud GGV",
